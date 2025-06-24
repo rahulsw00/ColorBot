@@ -4,6 +4,9 @@ import random
 import logging
 from dotenv import load_dotenv
 import os
+import random
+import re
+from discord.ext import commands
 
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
@@ -16,13 +19,48 @@ logging.basicConfig(level=logging.DEBUG, handlers=[handler])
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 
 # Event handlers
 @bot.event
 async def on_ready():
     print(f"{bot.user.name} is ready")
 
+#message triggers
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+    msg = message.content
+    if len(msg) >=200:
+        await message.channel.send('Holy yapp')
+    
+    if re.search(r"^i(?:'|’|\s+a)?m\s+(.*)\b", msg.lower()):
+        response = re.search(r"^i(?:'|’|\s+a)?m\s+(.*)\b", msg, flags=re.IGNORECASE)
+        if response:
+            await message.channel.send(f"Hi {response[1]}, I'm Bot")
+            return
+    
+    targets = ["ganyu","Ganyu"]
+    if any(t in msg.lower() for t in targets):
+        if message.author.name == 'syrgarde' or message.author.name == 'key_2':
+            await message.channel.send('g*nyu')
+        elif random.choice(range(1,6)) == 1:
+            await message.channel.send('g*nyu')
+    
+    if re.search(r'^ban$', msg.lower()):
+        file = discord.File("media/banhana.png", filename='banhana.gif')
+        await message.channel.send(file=file)
+
+    if re.search(r'^(who|who\?)$', msg.lower()):
+        await message.channel.send('tao')
+    
+    if re.search(r'^(bad bot)$', msg.lower()):
+        await message.channel.send('<:hamsterStare:1386426294870212771>')
+    
+    await bot.process_commands(message)
+
+# memeber join
 @bot.event
 async def on_member_join(member):
     """
@@ -41,11 +79,26 @@ async def on_member_join(member):
     else:
         print(f"The role '{role_name}' does not exist. Please create it in the server.")
 
+# help
+@bot.command(name='help')
+async def help(ctx):
+    embed = discord.Embed(
+        title='Commands:',
+        description="""
+    **!help** - Diplays this help message.
+    **!hello** - Says hello back.
+    **!assign** - Assign the user a random role.
+    **!editrole** - Edit your assigned role `!editrole rolename #color`.
+"""
+    )
+    await ctx.send(embed = embed)
+# hello
 @bot.command()
 async def hello(ctx):
     await ctx.send(f"Hello {ctx.author.mention}!")
 
-@bot.command(name= 'assign', help="use !assign to give yourself random role")
+# role assign command
+@bot.command()
 async def assign(ctx):
     # Exclude @everyone role and check user's current roles
     user_roles = [role for role in ctx.author.roles if role != ctx.guild.default_role]
@@ -70,10 +123,12 @@ async def assign(ctx):
     except discord.HTTPException as e:
         await ctx.send(f"An error occurred: {e}")
 
-@bot.command(name='editrole', help="Edit your assigned role `!editrole rolename #color`.")
+# role edit command
+@bot.command(name='editrole')
 async def edit_role(ctx, *, inputs: str):
     """
-    Edits the user's assigned role's name or color.
+    Allows a user to edit the name or color of their assigned role.
+    If the user only has the 'banned' role, they are instructed to use '!assign' to get a new role.
     Parameters:
     - inputs: Multi-word inputs for new name and/or hex color (e.g., "!editrole new name #FF0000").
     """
@@ -82,14 +137,26 @@ async def edit_role(ctx, *, inputs: str):
     new_name = parts[0].strip() if parts[0] else None
     hex_color = f"#{parts[1].strip()}" if len(parts) > 1 else None
 
-    # Find the user's assigned roles
-    user_roles = ctx.author.roles[1:]  # Exclude the @everyone role
+    # Find the user's roles (excluding @everyone)
+    user_roles = ctx.author.roles[1:]
     if not user_roles:
         await ctx.send(f"{ctx.author.mention}, you don't have any custom roles to edit.")
         return
 
-    # Use the first custom role found
-    user_role = user_roles[0]
+    # Check for the 'banned' role
+    banned_role = discord.utils.get(ctx.guild.roles, name="banned")
+    if banned_role in user_roles and len(user_roles) == 1:
+        await ctx.send(
+            f"{ctx.author.mention}, you cannot edit the role 'banned'. "
+            f"Please use `!assign` to get a random role to edit."
+        )
+        return
+
+    # Select the first editable role (not 'banned')
+    user_role = next((role for role in user_roles if role != banned_role), None)
+    if not user_role:
+        await ctx.send(f"{ctx.author.mention}, no editable roles were found.")
+        return
 
     # Prepare updates
     updates = {}
@@ -105,20 +172,21 @@ async def edit_role(ctx, *, inputs: str):
             return
 
     try:
-        # Apply the updates to the user's specific role
+        # Apply the updates to the user's role
         await user_role.edit(**updates)
         embed = discord.Embed(
             title="Role Updated",
             description=f"Your role has been updated:\n"
                         f"**Name:** {updates.get('name', user_role.name)}\n"
                         f"**Color:** {hex_color or user_role.color}",
-            color=user_role.color
+            color=updates.get('colour', user_role.color)
         )
         await ctx.send(embed=embed)
     except discord.Forbidden:
         await ctx.send("I don't have permissions to edit roles. Please check my role permissions.")
     except discord.HTTPException as e:
         await ctx.send(f"An error occurred: {e}")
+
 
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
