@@ -7,6 +7,7 @@ import os
 import random
 import re
 from discord.ext import commands
+import webserver
 
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
@@ -32,11 +33,12 @@ async def on_message(message):
     if message.author == bot.user:
         return
     msg = message.content
-    if len(msg) >=200:
+    if len(msg) >=300:
         await message.channel.send('Holy yapp')
     
-    if re.search(r"^i(?:'|’|\s+a)?m\s+(.*)\b", msg.lower()):
-        response = re.search(r"^i(?:'|’|\s+a)?m\s+(.*)\b", msg, flags=re.IGNORECASE)
+    pattern = r"^i(?:'|'|\s+a)?m\s+([a-zA-Z0-9][^<]*?)(?:\s*<.*)?$"
+    if re.match(pattern, msg.lower()):
+        response = re.match(pattern, msg, flags=re.IGNORECASE)
         if response:
             await message.channel.send(f"Hi {response[1]}, I'm Bot")
             return
@@ -45,8 +47,11 @@ async def on_message(message):
     if any(t in msg.lower() for t in targets):
         if message.author.name == 'syrgarde' or message.author.name == 'key_2':
             await message.channel.send('g*nyu')
-        elif random.choice(range(1,6)) == 1:
+        elif random.choice(range(5)) == 1:
             await message.channel.send('g*nyu')
+    
+    if 'phainon' in msg.lower() and random.choice(range(100)) == 1:
+        await message.channel.send("paimon")
     
     if re.search(r'^ban$', msg.lower()):
         file = discord.File("media/banhana.png", filename='banhana.gif')
@@ -54,6 +59,9 @@ async def on_message(message):
 
     if re.search(r'^(who|who\?)$', msg.lower()):
         await message.channel.send('tao')
+    
+    if re.search(r'\bwhere\b', msg.lower()) and random.choice(range(10)) == 1:
+        await message.channel.send('over der 👉')
     
     if re.search(r'^(bad bot)$', msg.lower()):
         await message.channel.send('<:hamsterStare:1386426294870212771>')
@@ -89,6 +97,7 @@ async def help(ctx):
     **!hello** - Says hello back.
     **!assign** - Assign the user a random role.
     **!editrole** - Edit your assigned role `!editrole rolename #color`.
+    **!8ball** - Ask the magic 8 ball a question.
 """
     )
     await ctx.send(embed = embed)
@@ -96,6 +105,21 @@ async def help(ctx):
 @bot.command()
 async def hello(ctx):
     await ctx.send(f"Hello {ctx.author.mention}!")
+
+# magic 8 ball
+@bot.command(name='8ball')
+async def magicBall(ctx,*,inputs: str):
+    responses = [
+       "Yes, definitely.",
+       "As I see it, yes.",
+       "Reply hazy, try again.",
+       "Cannot predict now.",
+       "Do not count on it.",
+       "My sources say no.",
+       "Outlook not so good.",
+       "Very doubtful."
+   ]
+    await ctx.reply(f"{random.choice(responses)}", mention_author = True)
 
 # role assign command
 @bot.command()
@@ -188,5 +212,5 @@ async def edit_role(ctx, *, inputs: str):
         await ctx.send(f"An error occurred: {e}")
 
 
-
+webserver.keep_alive()
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
